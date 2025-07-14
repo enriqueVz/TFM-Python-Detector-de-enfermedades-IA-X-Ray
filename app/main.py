@@ -47,7 +47,7 @@ class VentanaInicio:
         self.frame_redes = tk.Frame(self.root)
 
         # Cargar iconos
-        ruta_assets = os.path.join("assets", "images")
+        ruta_assets = os.path.join("assets", "icons")
         img_linkedin = Image.open(os.path.join(ruta_assets, "linkedin.png")).resize((80, 80), Image.Resampling.LANCZOS)
         img_github = Image.open(os.path.join(ruta_assets, "github.png")).resize((80, 80), Image.Resampling.LANCZOS)
         img_kaggle = Image.open(os.path.join(ruta_assets, "kaggle.png")).resize((100, 80), Image.Resampling.LANCZOS)
