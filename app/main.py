@@ -145,9 +145,10 @@ class PantallaLogin:
 
 
 class PantallaPostLogin:
-    def __init__(self, root, mostrar_radiografias):
+    def __init__(self, root, mostrar_radiografias, cerrar_sesion_callback):
         self.root = root
         self.mostrar_radiografias = mostrar_radiografias
+        self.cerrar_sesion_callback = cerrar_sesion_callback  # Guardamos el callback
 
         self.frame = tk.Frame(root)
 
@@ -163,6 +164,9 @@ class PantallaPostLogin:
         self.btn_modelos = tk.Button(self.frame, text="Modelos disponibles", width=25, height=2)
         self.btn_modelos.pack(pady=10)
 
+        self.btn_cerrar_sesion = tk.Button(self.frame, text="Cerrar sesión", width=25, height=2, command=self.cerrar_sesion_callback)
+        self.btn_cerrar_sesion.pack(pady=10)
+
     def mostrar(self):
         self.frame.pack(fill="both", expand=True)
 
@@ -170,17 +174,19 @@ class PantallaPostLogin:
         self.frame.pack_forget()
 
 class PantallaRadiografias(tk.Frame):
-    def __init__(self, root, volver, controlador):
+    def __init__(self, root, volver, controlador, carpeta=None):
         super().__init__(root)
         self.root = root
         self.volver = volver
         self.controlador = controlador
         self.tamano_original = self.root.geometry()
         self.pack(fill="both", expand=True)
-        self.ruta_imgs = os.path.join("assets", "xrays")
+        
+        self.ruta_imgs = carpeta if carpeta else os.path.join("assets", "xrays")
+
         self.imagen_paths = [os.path.join(self.ruta_imgs, f) for f in os.listdir(self.ruta_imgs)
                              if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))]
-
+        
         self.imgs_mostradas = []
 
         # --- Barra superior ---
@@ -197,12 +203,21 @@ class PantallaRadiografias(tk.Frame):
         btn_random = tk.Button(frame_derecha, text="Mostrar radiografías aleatorias", command=self.mostrar_imagenes_aleatorias)
         btn_random.pack(side="left", padx=(0, 10))
 
+        btn_masa = tk.Button(frame_derecha, text="Mostrar solo masa", command=self.controlador.mostrar_radiografias_masa)
+        btn_masa.pack(side="left", padx=(0, 10))
+
+        btn_pneumonia = tk.Button(frame_derecha, text="Mostrar solo pneumonia", command=self.controlador.mostrar_radiografias_pneumonia)
+        btn_pneumonia.pack(side="left", padx=(0, 10))
+
+        frame_faq = tk.Frame(self)
+        frame_faq.pack(pady=(0, 5))
+
         ruta_faq = os.path.join("assets", "icons", "faq.png")
         img_faq = Image.open(ruta_faq).resize((30, 30), Image.Resampling.LANCZOS)
         self.icon_faq = ImageTk.PhotoImage(img_faq)
 
-        btn_faq = tk.Button(frame_derecha, image=self.icon_faq, command=lambda: controlador.mostrar_faq("radiografias"), cursor="hand2", bd=0)
-        btn_faq.pack(side="left")
+        btn_faq = tk.Button(frame_faq, image=self.icon_faq, command=lambda: controlador.mostrar_faq("radiografias"), cursor="hand2", bd=0)
+        btn_faq.pack()
 
         # --- Área scrollable ---
         self.frame_imgs = tk.Frame(self)
@@ -309,8 +324,7 @@ class App:
             if es_valido:
                 self.pantalla_login.ocultar()
                 # Crear pantalla post login si no existe
-                if not self.pantalla_post_login:
-                    self.pantalla_post_login = PantallaPostLogin(self.root, self.mostrar_radiografias)
+                self.pantalla_post_login = PantallaPostLogin(self.root, self.mostrar_radiografias, self.cerrar_sesion)
                 self.pantalla_post_login.mostrar()
             else:
                 self.pantalla_login.label_mensaje.config(text="Credenciales incorrectas.", fg="red")
@@ -334,12 +348,41 @@ class App:
         self.centrar_ventana(680, 740)
         self.pantalla_radiografias.pack(fill="both", expand=True)
 
+    def mostrar_radiografias_masa(self):
+        if self.pantalla_post_login:
+            self.pantalla_post_login.ocultar()
+        if self.pantalla_radiografias:
+            self.pantalla_radiografias.destroy()
+        self.pantalla_radiografias = PantallaRadiografias(self.root, self.volver_post_login, self, carpeta="assets/masa")
+        self.centrar_ventana(680, 740)
+        self.pantalla_radiografias.pack(fill="both", expand=True)
+
+    def mostrar_radiografias_pneumonia(self):
+        if self.pantalla_post_login:
+            self.pantalla_post_login.ocultar()
+        if self.pantalla_radiografias:
+            self.pantalla_radiografias.destroy()
+        self.pantalla_radiografias = PantallaRadiografias(self.root, self.volver_post_login, self, carpeta="assets/pneumonia")
+        self.centrar_ventana(680, 740)
+        self.pantalla_radiografias.pack(fill="both", expand=True)
+
     def volver_post_login(self):
         if self.pantalla_radiografias:
             self.pantalla_radiografias.pack_forget()
         if self.pantalla_post_login:
             self.centrar_ventana(1000, 740)
             self.pantalla_post_login.mostrar()
+
+    def cerrar_sesion(self):
+        # Ocultar cualquier pantalla activa
+        if self.pantalla_post_login:
+            self.pantalla_post_login.ocultar()
+        if self.pantalla_radiografias:
+            self.pantalla_radiografias.pack_forget()
+
+        self.centrar_ventana(1000, 740)
+        self.pantalla_principal.mostrar()
+
 
     def solicitar_cuenta(self):
         messagebox.showinfo("Solicitar cuenta", "Para solicitar una cuenta, contacta con el administrador del sistema.")
