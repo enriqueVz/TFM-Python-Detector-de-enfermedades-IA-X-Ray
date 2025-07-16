@@ -6,7 +6,8 @@ import webbrowser
 import os
 import random
 from tkinter import messagebox
-
+import pandas as pd
+import re
 
 class PantallaCarga:
     def __init__(self, root, on_conexion_verificada):
@@ -145,10 +146,12 @@ class PantallaLogin:
 
 
 class PantallaPostLogin:
-    def __init__(self, root, mostrar_radiografias, cerrar_sesion_callback):
+    def __init__(self, root, mostrar_radiografias, cerrar_sesion_callback, mostrar_historial_callback=None):
         self.root = root
         self.mostrar_radiografias = mostrar_radiografias
         self.cerrar_sesion_callback = cerrar_sesion_callback  # Guardamos el callback
+        self.mostrar_historial_callback = mostrar_historial_callback
+
 
         self.frame = tk.Frame(root)
 
@@ -157,6 +160,9 @@ class PantallaPostLogin:
 
         self.btn_analizar = tk.Button(self.frame, text="Analizar radiografía", width=25, height=2)
         self.btn_analizar.pack(pady=10)
+
+        self.btn_historial = tk.Button(self.frame, text="Historial de sus pacientes", width=25, height=2, command=self.mostrar_historial_callback)
+        self.btn_historial.pack(pady=10)
 
         self.btn_stock = tk.Button(self.frame, text="Stock de radiografías", width=25, height=2, command=self.mostrar_radiografias)
         self.btn_stock.pack(pady=10)
@@ -275,6 +281,68 @@ class PantallaRadiografias(tk.Frame):
 
                 self.imgs_mostradas.append(img_tk)
 
+class PantallaHistorialPacientes(tk.Frame):
+    def __init__(self, root, volver_callback, db, user_id):
+        super().__init__(root)
+        self.root = root
+        self.volver_callback = volver_callback
+        self.db = db
+        self.user_id = user_id
+        self.label_mensaje = tk.Label(self, text="", fg="red", font=("Arial", 12))
+        self.label_mensaje.pack()
+
+        self.pack(fill="both", expand=True)
+
+        label = tk.Label(self, text="Consultar historial de paciente", font=("Arial", 16))
+        label.pack(pady=20)
+
+        frame_busqueda = tk.Frame(self)
+        frame_busqueda.pack()
+
+        tk.Label(frame_busqueda, text="DNI del paciente:").pack(side="left")
+        self.entry_dni = tk.Entry(frame_busqueda)
+        self.entry_dni.pack(side="left", padx=10)
+
+        btn_buscar = tk.Button(frame_busqueda, text="Buscar", command=self.buscar_historial)
+        btn_buscar.pack(side="left")
+
+        btn_volver = tk.Button(self, text="Volver", command=self.volver)
+        btn_volver.pack(pady=10)
+
+        self.resultado_texto = tk.Text(self, width=80, height=20)
+        self.resultado_texto.pack(pady=20)
+
+    def buscar_historial(self):
+        dni = self.entry_dni.get().strip()
+        self.label_mensaje.config(text="")  # Limpiar mensajes previos
+        self.resultado_texto.delete(1.0, tk.END)  # Limpiar resultados previos
+
+        if not dni:
+            self.label_mensaje.config(text="Por favor, introduce un DNI.")
+            return
+
+        # Validar formato DNI con regex
+        if not re.match(r'^\d{8}[A-Z]$', dni):
+            self.label_mensaje.config(text="Formato de DNI inválido. Debe ser 8 números seguidos de una letra mayúscula.")
+            return
+
+        try:
+            resultados = self.db.get_historial_por_dni(dni, self.user_id)
+
+            if not resultados:
+                self.label_mensaje.config(text="No hay un historial para este número de documento.")
+                return
+
+            df = pd.DataFrame(resultados)
+            self.resultado_texto.insert(tk.END, df.to_string(index=False))
+
+        except Exception as e:
+            self.label_mensaje.config(text=f"No se pudo recuperar el historial, revise la veracidad de sus datos.")
+
+    def volver(self):
+        self.pack_forget()
+        self.volver_callback()
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -324,7 +392,12 @@ class App:
             if es_valido:
                 self.pantalla_login.ocultar()
                 # Crear pantalla post login si no existe
-                self.pantalla_post_login = PantallaPostLogin(self.root, self.mostrar_radiografias, self.cerrar_sesion)
+                self.pantalla_post_login = PantallaPostLogin(
+                self.root,
+                self.mostrar_radiografias,
+                self.cerrar_sesion,
+                self.mostrar_historial  # Este es el nuevo callback para el botón "Historial"
+                )
                 self.pantalla_post_login.mostrar()
             else:
                 self.pantalla_login.label_mensaje.config(text="Credenciales incorrectas.", fg="red")
@@ -369,9 +442,14 @@ class App:
     def volver_post_login(self):
         if self.pantalla_radiografias:
             self.pantalla_radiografias.pack_forget()
+            
+        if hasattr(self, "pantalla_historial") and self.pantalla_historial:
+            self.pantalla_historial.pack_forget()
+
         if self.pantalla_post_login:
             self.centrar_ventana(1000, 740)
             self.pantalla_post_login.mostrar()
+
 
     def cerrar_sesion(self):
         # Ocultar cualquier pantalla activa
@@ -383,6 +461,15 @@ class App:
         self.centrar_ventana(1000, 740)
         self.pantalla_principal.mostrar()
 
+    
+    def mostrar_historial(self):
+        if self.pantalla_post_login:
+            self.pantalla_post_login.ocultar()
+        if hasattr(self, "pantalla_historial") and self.pantalla_historial:
+            self.pantalla_historial.pack_forget()
+        self.pantalla_historial = PantallaHistorialPacientes(self.root, self.volver_post_login, self.db, self.db.usuario_actual)
+        self.centrar_ventana(1000, 740)
+        self.pantalla_historial.pack(fill="both", expand=True)
 
     def solicitar_cuenta(self):
         messagebox.showinfo("Solicitar cuenta", "Para solicitar una cuenta, contacta con el administrador del sistema.")
