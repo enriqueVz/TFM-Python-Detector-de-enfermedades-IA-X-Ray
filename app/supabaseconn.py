@@ -42,3 +42,12 @@ class SupabaseDB:
             "numero_radiografia": numero_radiografia,
             "patologias": patologias
         }).execute()
+
+    def get_historial_por_dni(self, dni, user_id):
+        response = self.supabase.table("pacientes_usuario") \
+            .select("*") \
+            .eq("paciente_id", dni) \
+            .eq("user_id", user_id) \
+            .execute()
+
+        return response.data

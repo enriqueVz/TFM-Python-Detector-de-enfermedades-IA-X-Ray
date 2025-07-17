@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from app.supabaseconn import SupabaseDB
 import threading
 from PIL import Image, ImageTk
@@ -320,13 +321,33 @@ class PantallaHistorialPacientes(tk.Frame):
         btn_añadir = tk.Button(frame_botones, text="Añadir paciente", command=self.abrir_formulario_paciente)
         btn_añadir.pack(side="left", padx=10)
 
-        self.resultado_texto = tk.Text(self, width=80, height=20)
-        self.resultado_texto.pack(pady=20)
+        # Frame para el Treeview
+        self.tree_frame = tk.Frame(self)
+        self.tree_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+        # Si existe un Treeview anterior, destruirlo
+        if hasattr(self, 'treeview'):
+            self.treeview.destroy()
+
+        self.treeview = ttk.Treeview(self.tree_frame, show='headings')
+        self.treeview.pack(fill="both", expand=True)
+
+        # Scrollbars para el Treeview
+        scrollbar_v = tk.Scrollbar(self.tree_frame, orient="vertical", command=self.treeview.yview)
+        scrollbar_v.pack(side="right", fill="y")
+        self.treeview.configure(yscrollcommand=scrollbar_v.set)
+
+        scrollbar_h = tk.Scrollbar(self.tree_frame, orient="horizontal", command=self.treeview.xview)
+        scrollbar_h.pack(side="bottom", fill="x")
+        self.treeview.configure(xscrollcommand=scrollbar_h.set)
 
     def buscar_historial(self):
-        dni = self.entry_dni.get().strip()
+        dni = self.entry_dni.get().strip().upper()
         self.label_mensaje.config(text="")
-        self.resultado_texto.delete(1.0, tk.END)
+
+        # Limpiar Treeview antes de mostrar resultados
+        for i in self.treeview.get_children():
+            self.treeview.delete(i)
 
         if not dni:
             self.label_mensaje.config(text="Por favor, introduce un DNI.")
@@ -344,10 +365,31 @@ class PantallaHistorialPacientes(tk.Frame):
                 return
 
             df = pd.DataFrame(resultados)
-            self.resultado_texto.insert(tk.END, df.to_string(index=False))
 
-        except Exception:
+            # Formatear fecha para que sea legible
+            if "fecha_registro" in df.columns:
+                df["fecha_registro"] = pd.to_datetime(df["fecha_registro"]).dt.strftime("%d/%m/%Y %H:%M")
+
+            # Configuramos las columnas del Treeview
+            self.treeview["columns"] = list(df.columns)
+
+            for col in df.columns:
+                self.treeview.heading(col, text=col)
+                self.treeview.column(col, width=150, anchor='center')
+
+            # Insertar filas
+            for _, row in df.iterrows():
+                fila = []
+                for val in row:
+                    if isinstance(val, list):
+                        fila.append(", ".join(str(x) for x in val))
+                    else:
+                        fila.append(str(val))
+                self.treeview.insert("", "end", values=fila)
+
+        except Exception as e:
             self.label_mensaje.config(text="No se pudo recuperar el historial, revise la veracidad de sus datos.")
+            print("Error en buscar_historial:", e)
 
     def abrir_formulario_paciente(self):
         self.limpiar_contenido()
@@ -391,8 +433,9 @@ class PantallaHistorialPacientes(tk.Frame):
                 )
                 self.label_mensaje.config(text="Paciente añadido con éxito.", fg="green")
                 self.mostrar_busqueda()
-            except Exception:
+            except Exception as e:
                 self.label_mensaje.config(text="Error al guardar el paciente.", fg="red")
+                print("Error en registrar paciente:", e)
 
         btn_guardar = tk.Button(form_frame, text="Guardar", command=registrar)
         btn_guardar.grid(row=3, column=0, columnspan=2, pady=10)
@@ -405,6 +448,7 @@ class PantallaHistorialPacientes(tk.Frame):
     def volver(self):
         self.pack_forget()
         self.volver_callback()
+
 class App:
     def __init__(self, root):
         self.root = root
