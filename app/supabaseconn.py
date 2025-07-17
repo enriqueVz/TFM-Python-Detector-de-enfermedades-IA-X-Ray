@@ -22,10 +22,10 @@ class SupabaseDB:
             .execute()
 
         if len(respuesta.data) > 0:
-            self.usuario_actual = correo  # Guardamos el correo para futuras consultas
+            # Guarda solo el correo, no todo el objeto
+            self.usuario_logueado = correo
             return True
         return False
-
 
     def obtener_usuario_id(self):
         """
@@ -40,7 +40,9 @@ class SupabaseDB:
             "user_id": user_id,
             "paciente_id": paciente_id,
             "numero_radiografia": numero_radiografia,
-            "patologias": patologias
+            "patologias": patologias,
+            "ruta_imagen": ""
+
         }).execute()
 
     def get_historial_por_dni(self, dni, user_id):
@@ -51,3 +53,30 @@ class SupabaseDB:
             .execute()
 
         return response.data
+
+def paciente_existe(self, paciente_id):
+    response = self.supabase.table("pacientes_usuario") \
+        .select("paciente_id") \
+        .eq("paciente_id", paciente_id) \
+        .execute()
+    return len(response.data) > 0
+
+def crear_paciente_simple(self, paciente_id):
+    # Insertar paciente con solo paciente_id, sin patologías ni timestamp
+    self.supabase.table("pacientes_usuario").insert({
+        "paciente_id": paciente_id,
+        "numero_radiografia": 0,
+        "patologias": [],
+        "ruta_imagen": ""
+
+    }).execute()
+
+def insertar_radiografia(self, user_id, paciente_id, numero_radiografia, patologias, ruta_imagen):
+    # Aquí debes guardar ruta_imagen (idealmente URL de Supabase Storage)
+    self.supabase.table("pacientes_usuario").insert({
+        "user_id": user_id,
+        "paciente_id": paciente_id,
+        "numero_radiografia": numero_radiografia,
+        "patologias": patologias,
+        "ruta_imagen": ruta_imagen
+    }).execute()

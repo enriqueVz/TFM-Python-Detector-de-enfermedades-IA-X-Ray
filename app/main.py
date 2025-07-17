@@ -6,7 +6,7 @@ from PIL import Image, ImageTk
 import webbrowser
 import os
 import random
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 import pandas as pd
 import re
 
@@ -402,22 +402,11 @@ class PantallaHistorialPacientes(tk.Frame):
         entry_dni = tk.Entry(form_frame)
         entry_dni.grid(row=0, column=1)
 
-        tk.Label(form_frame, text="Nº Radiografía:").grid(row=1, column=0, padx=10, pady=5)
-        entry_radiografia = tk.Entry(form_frame)
-        entry_radiografia.insert(0, "0")
-        entry_radiografia.grid(row=1, column=1)
-
-        tk.Label(form_frame, text="Patologías (separadas por comas):").grid(row=2, column=0, padx=10, pady=5)
-        entry_patologias = tk.Entry(form_frame)
-        entry_patologias.grid(row=2, column=1)
-
         def registrar():
             dni = entry_dni.get().strip()
-            num_rad = entry_radiografia.get().strip()
-            patologias = entry_patologias.get().strip().split(",")
 
-            if not dni or not num_rad:
-                self.label_mensaje.config(text="Todos los campos son obligatorios.")
+            if not dni:
+                self.label_mensaje.config(text="El DNI es obligatorio.")
                 return
 
             if not re.match(r'^\d{8}[A-Z]$', dni):
@@ -425,11 +414,12 @@ class PantallaHistorialPacientes(tk.Frame):
                 return
 
             try:
+                # Insertar paciente con radiografía=0 y patologías vacías
                 self.db.insertar_paciente(
                     user_id=self.user_id,
                     paciente_id=dni,
-                    numero_radiografia=num_rad,
-                    patologias=[p.strip() for p in patologias if p.strip()]
+                    numero_radiografia="0",
+                    patologias=[]
                 )
                 self.label_mensaje.config(text="Paciente añadido con éxito.", fg="green")
                 self.mostrar_busqueda()
@@ -438,7 +428,7 @@ class PantallaHistorialPacientes(tk.Frame):
                 print("Error en registrar paciente:", e)
 
         btn_guardar = tk.Button(form_frame, text="Guardar", command=registrar)
-        btn_guardar.grid(row=3, column=0, columnspan=2, pady=10)
+        btn_guardar.grid(row=1, column=0, columnspan=2, pady=10)
 
     def limpiar_contenido(self):
         for widget in self.winfo_children():
@@ -448,6 +438,107 @@ class PantallaHistorialPacientes(tk.Frame):
     def volver(self):
         self.pack_forget()
         self.volver_callback()
+
+class PantallaAnalizarRadiografia(tk.Frame):
+    def __init__(self, root, volver_callback, db, user_id):
+        super().__init__(root)
+        self.root = root
+        self.volver_callback = volver_callback
+        self.db = db
+        self.user_id = user_id
+        self.path_radiografia = None
+
+        self.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Título
+        tk.Label(self, text="Analizar radiografía", font=("Arial", 16)).pack(pady=10)
+
+        # Entrada DNI
+        frame_dni = tk.Frame(self)
+        frame_dni.pack(pady=10)
+        tk.Label(frame_dni, text="DNI del paciente:").pack(side="left")
+        self.entry_dni = tk.Entry(frame_dni)
+        self.entry_dni.pack(side="left", padx=5)
+
+        # Botón para cargar radiografía
+        self.btn_cargar = tk.Button(self, text="Seleccionar radiografía", command=self.seleccionar_radiografia)
+        self.btn_cargar.pack(pady=10)
+
+        # Label para mostrar el nombre del archivo seleccionado
+        self.label_archivo = tk.Label(self, text="Ningún archivo seleccionado")
+        self.label_archivo.pack(pady=5)
+
+        # Botón para analizar
+        self.btn_analizar = tk.Button(self, text="Analizar y guardar", command=self.analizar_y_guardar)
+        self.btn_analizar.pack(pady=20)
+
+        # Mensajes
+        self.label_mensaje = tk.Label(self, text="", fg="red")
+        self.label_mensaje.pack()
+
+        # Botón volver
+        self.btn_volver = tk.Button(self, text="Volver", command=self.volver)
+        self.btn_volver.pack(side="bottom", pady=10)
+
+    def seleccionar_radiografia(self):
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Imagenes", "*.png *.jpg *.jpeg *.bmp")]
+        )
+        if file_path:
+            self.path_radiografia = file_path
+            nombre = os.path.basename(file_path)
+            self.label_archivo.config(text=f"Archivo seleccionado: {nombre}")
+
+    def analizar_y_guardar(self):
+        dni = self.entry_dni.get().strip().upper()
+        self.label_mensaje.config(text="", fg="red")
+
+        # Validación DNI
+        if not dni:
+            self.label_mensaje.config(text="Por favor, introduce un DNI.")
+            return
+        if not re.match(r'^\d{8}[A-Z]$', dni):
+            self.label_mensaje.config(text="DNI inválido. Debe tener 8 números y una letra mayúscula.")
+            return
+        if not self.path_radiografia:
+            self.label_mensaje.config(text="Debes seleccionar una radiografía.")
+            return
+
+        try:
+            # Comprobar si paciente existe
+            existe = self.db.paciente_existe(dni)
+
+            if not existe:
+                # Crear paciente sin patologías ni timestamp
+                self.db.crear_paciente_simple(dni)
+
+            # Aquí iría la llamada al modelo, por ahora simulamos el resultado
+            resultado_analisis = self.analizar_radiografia_modelo(self.path_radiografia)
+
+            # Insertar registro con resultado y ruta radiografía (luego subirás al bucket)
+            self.db.insertar_radiografia(
+                user_id=self.user_id,
+                paciente_id=dni,
+                numero_radiografia="0",  # o puedes numerarlo desde la base
+                patologias=[resultado_analisis],
+                ruta_imagen=self.path_radiografia  # Por ahora local, luego url bucket
+            )
+
+            self.label_mensaje.config(text="Radiografía analizada y guardada con éxito.", fg="green")
+
+        except Exception as e:
+            self.label_mensaje.config(text=f"Error: {str(e)}")
+
+    def analizar_radiografia_modelo(self, ruta_imagen):
+        # Aquí irás integrando tu modelo ML
+        # Por ahora retornamos 'pneumonia' o 'nada' de forma dummy
+        import random
+        return random.choice(["pneumonia", "nada"])
+
+    def volver(self):
+        self.pack_forget()
+        self.volver_callback()
+
 
 class App:
     def __init__(self, root):
@@ -573,7 +664,7 @@ class App:
             self.pantalla_post_login.ocultar()
         if hasattr(self, "pantalla_historial") and self.pantalla_historial:
             self.pantalla_historial.pack_forget()
-        self.pantalla_historial = PantallaHistorialPacientes(self.root, self.volver_post_login, self.db, self.db.usuario_actual)
+        self.pantalla_historial = PantallaHistorialPacientes(self.root, self.volver_post_login, self.db, self.db.usuario_logueado)
         self.centrar_ventana(1000, 740)
         self.pantalla_historial.pack(fill="both", expand=True)
 
