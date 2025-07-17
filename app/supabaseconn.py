@@ -28,12 +28,8 @@ class SupabaseDB:
         return False
 
     def obtener_usuario_id(self):
-        """
-        Devuelve el correo del usuario logueado.
-        """
-        if self.usuario_logueado:
-            return self.usuario_logueado.get("correo")  # ahora el ID es el correo
-        return None
+        return self.usuario_logueado
+
     
     def insertar_paciente(self, user_id, paciente_id, numero_radiografia, patologias):
         self.supabase.table("pacientes_usuario").insert({

@@ -168,17 +168,57 @@ class PantallaPostLogin:
         self.btn_stock = tk.Button(self.frame, text="Stock de radiografías", width=25, height=2, command=self.mostrar_radiografias)
         self.btn_stock.pack(pady=10)
 
-        self.btn_modelos = tk.Button(self.frame, text="Modelos disponibles", width=25, height=2)
+        self.btn_modelos = tk.Button(self.frame, text="Modelos disponibles", width=25, height=2, command=self.mostrar_modelos)
         self.btn_modelos.pack(pady=10)
 
         self.btn_cerrar_sesion = tk.Button(self.frame, text="Cerrar sesión", width=25, height=2, command=self.cerrar_sesion_callback)
         self.btn_cerrar_sesion.pack(pady=10)
+
+
+        #Frame para modelos (Visual)
+        self.frame_modelos = tk.Frame(root)
+
+        self.listbox_modelos = tk.Listbox(self.frame_modelos, width=50, height=20)
+        self.listbox_modelos.pack(pady=20)
+
+        self.btn_volver_modelos = tk.Button(self.frame_modelos, text="Volver", command=self.volver_a_principal)
+        self.btn_volver_modelos.pack()
 
     def mostrar(self):
         self.frame.pack(fill="both", expand=True)
 
     def ocultar(self):
         self.frame.pack_forget()
+
+    def mostrar_modelos(self):
+        # Ocultar contenido principal
+        self.frame.pack_forget()
+
+        # Limpiar listbox antes de mostrar
+        self.listbox_modelos.delete(0, tk.END)
+
+        # Leer archivos de assets/models
+        carpeta_modelos = "assets/models/"
+        try:
+            archivos = os.listdir(carpeta_modelos)
+        except FileNotFoundError:
+            archivos = []
+            self.listbox_modelos.insert(tk.END, "Carpeta no encontrada")
+
+        if archivos:
+            for archivo in archivos:
+                self.listbox_modelos.insert(tk.END, archivo)
+        else:
+            self.listbox_modelos.insert(tk.END, "No hay modelos disponibles")
+
+        # Mostrar frame modelos
+        self.frame_modelos.pack(fill="both", expand=True)
+
+    def volver_a_principal(self):
+        # Ocultar modelos
+        self.frame_modelos.pack_forget()
+        # Mostrar contenido principal
+        self.frame.pack(fill="both", expand=True)
 
 class PantallaRadiografias(tk.Frame):
     def __init__(self, root, volver, controlador, carpeta=None):
