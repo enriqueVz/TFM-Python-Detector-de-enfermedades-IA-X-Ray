@@ -34,3 +34,11 @@ class SupabaseDB:
         if self.usuario_logueado:
             return self.usuario_logueado.get("correo")  # ahora el ID es el correo
         return None
+    
+    def insertar_paciente(self, user_id, paciente_id, numero_radiografia, patologias):
+        self.supabase.table("pacientes_usuario").insert({
+            "user_id": user_id,
+            "paciente_id": paciente_id,
+            "numero_radiografia": numero_radiografia,
+            "patologias": patologias
+        }).execute()

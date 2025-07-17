@@ -288,10 +288,15 @@ class PantallaHistorialPacientes(tk.Frame):
         self.volver_callback = volver_callback
         self.db = db
         self.user_id = user_id
+
         self.label_mensaje = tk.Label(self, text="", fg="red", font=("Arial", 12))
         self.label_mensaje.pack()
 
         self.pack(fill="both", expand=True)
+        self.mostrar_busqueda()
+
+    def mostrar_busqueda(self):
+        self.limpiar_contenido()
 
         label = tk.Label(self, text="Consultar historial de paciente", font=("Arial", 16))
         label.pack(pady=20)
@@ -306,22 +311,27 @@ class PantallaHistorialPacientes(tk.Frame):
         btn_buscar = tk.Button(frame_busqueda, text="Buscar", command=self.buscar_historial)
         btn_buscar.pack(side="left")
 
-        btn_volver = tk.Button(self, text="Volver", command=self.volver)
-        btn_volver.pack(pady=10)
+        frame_botones = tk.Frame(self)
+        frame_botones.pack(pady=10)
+
+        btn_volver = tk.Button(frame_botones, text="Volver", command=self.volver)
+        btn_volver.pack(side="left", padx=10)
+
+        btn_añadir = tk.Button(frame_botones, text="Añadir paciente", command=self.abrir_formulario_paciente)
+        btn_añadir.pack(side="left", padx=10)
 
         self.resultado_texto = tk.Text(self, width=80, height=20)
         self.resultado_texto.pack(pady=20)
 
     def buscar_historial(self):
         dni = self.entry_dni.get().strip()
-        self.label_mensaje.config(text="")  # Limpiar mensajes previos
-        self.resultado_texto.delete(1.0, tk.END)  # Limpiar resultados previos
+        self.label_mensaje.config(text="")
+        self.resultado_texto.delete(1.0, tk.END)
 
         if not dni:
             self.label_mensaje.config(text="Por favor, introduce un DNI.")
             return
 
-        # Validar formato DNI con regex
         if not re.match(r'^\d{8}[A-Z]$', dni):
             self.label_mensaje.config(text="Formato de DNI inválido. Debe ser 8 números seguidos de una letra mayúscula.")
             return
@@ -336,13 +346,65 @@ class PantallaHistorialPacientes(tk.Frame):
             df = pd.DataFrame(resultados)
             self.resultado_texto.insert(tk.END, df.to_string(index=False))
 
-        except Exception as e:
-            self.label_mensaje.config(text=f"No se pudo recuperar el historial, revise la veracidad de sus datos.")
+        except Exception:
+            self.label_mensaje.config(text="No se pudo recuperar el historial, revise la veracidad de sus datos.")
+
+    def abrir_formulario_paciente(self):
+        self.limpiar_contenido()
+        self.label_mensaje.config(text="")
+
+        form_frame = tk.Frame(self)
+        form_frame.pack(pady=10)
+
+        tk.Label(form_frame, text="DNI del paciente:").grid(row=0, column=0, padx=10, pady=5)
+        entry_dni = tk.Entry(form_frame)
+        entry_dni.grid(row=0, column=1)
+
+        tk.Label(form_frame, text="Nº Radiografía:").grid(row=1, column=0, padx=10, pady=5)
+        entry_radiografia = tk.Entry(form_frame)
+        entry_radiografia.insert(0, "0")
+        entry_radiografia.grid(row=1, column=1)
+
+        tk.Label(form_frame, text="Patologías (separadas por comas):").grid(row=2, column=0, padx=10, pady=5)
+        entry_patologias = tk.Entry(form_frame)
+        entry_patologias.grid(row=2, column=1)
+
+        def registrar():
+            dni = entry_dni.get().strip()
+            num_rad = entry_radiografia.get().strip()
+            patologias = entry_patologias.get().strip().split(",")
+
+            if not dni or not num_rad:
+                self.label_mensaje.config(text="Todos los campos son obligatorios.")
+                return
+
+            if not re.match(r'^\d{8}[A-Z]$', dni):
+                self.label_mensaje.config(text="DNI inválido: deben ser 8 números seguidos de una letra mayúscula.")
+                return
+
+            try:
+                self.db.insertar_paciente(
+                    user_id=self.user_id,
+                    paciente_id=dni,
+                    numero_radiografia=num_rad,
+                    patologias=[p.strip() for p in patologias if p.strip()]
+                )
+                self.label_mensaje.config(text="Paciente añadido con éxito.", fg="green")
+                self.mostrar_busqueda()
+            except Exception:
+                self.label_mensaje.config(text="Error al guardar el paciente.", fg="red")
+
+        btn_guardar = tk.Button(form_frame, text="Guardar", command=registrar)
+        btn_guardar.grid(row=3, column=0, columnspan=2, pady=10)
+
+    def limpiar_contenido(self):
+        for widget in self.winfo_children():
+            if widget not in [self.label_mensaje]:
+                widget.destroy()
 
     def volver(self):
         self.pack_forget()
         self.volver_callback()
-
 class App:
     def __init__(self, root):
         self.root = root
