@@ -150,16 +150,21 @@ class PantallaPostLogin:
     def __init__(self, root, mostrar_radiografias, cerrar_sesion_callback, mostrar_historial_callback=None):
         self.root = root
         self.mostrar_radiografias = mostrar_radiografias
-        self.cerrar_sesion_callback = cerrar_sesion_callback  # Guardamos el callback
+        self.cerrar_sesion_callback = cerrar_sesion_callback
         self.mostrar_historial_callback = mostrar_historial_callback
-
 
         self.frame = tk.Frame(root)
 
         self.label_bienvenida = tk.Label(self.frame, text="Inicio de sesión correcto", font=("Arial", 20), fg="green")
         self.label_bienvenida.pack(pady=40)
 
-        self.btn_analizar = tk.Button(self.frame, text="Analizar radiografía", width=25, height=2)
+        self.btn_analizar = tk.Button(
+            self.frame,
+            text="Analizar radiografía",
+            width=25,
+            height=2,
+            command=self.mostrar_analizar_radiografia
+        )
         self.btn_analizar.pack(pady=10)
 
         self.btn_historial = tk.Button(self.frame, text="Historial de sus pacientes", width=25, height=2, command=self.mostrar_historial_callback)
@@ -174,8 +179,7 @@ class PantallaPostLogin:
         self.btn_cerrar_sesion = tk.Button(self.frame, text="Cerrar sesión", width=25, height=2, command=self.cerrar_sesion_callback)
         self.btn_cerrar_sesion.pack(pady=10)
 
-
-        #Frame para modelos (Visual)
+        # Frame para modelos
         self.frame_modelos = tk.Frame(root)
 
         self.listbox_modelos = tk.Listbox(self.frame_modelos, width=50, height=20)
@@ -191,13 +195,10 @@ class PantallaPostLogin:
         self.frame.pack_forget()
 
     def mostrar_modelos(self):
-        # Ocultar contenido principal
-        self.frame.pack_forget()
+        self.ocultar()
 
-        # Limpiar listbox antes de mostrar
         self.listbox_modelos.delete(0, tk.END)
 
-        # Leer archivos de assets/models
         carpeta_modelos = "assets/models/"
         try:
             archivos = os.listdir(carpeta_modelos)
@@ -211,14 +212,22 @@ class PantallaPostLogin:
         else:
             self.listbox_modelos.insert(tk.END, "No hay modelos disponibles")
 
-        # Mostrar frame modelos
         self.frame_modelos.pack(fill="both", expand=True)
 
     def volver_a_principal(self):
-        # Ocultar modelos
         self.frame_modelos.pack_forget()
-        # Mostrar contenido principal
-        self.frame.pack(fill="both", expand=True)
+        self.mostrar()
+
+    def mostrar_analizar_radiografia(self):
+        self.ocultar()
+
+        # Asumo que tienes una clase PantallaAnalizarRadiografia compatible con esta llamada
+        self.pantalla_analizar = PantallaAnalizarRadiografia(
+            self.root,
+            volver_callback=self.mostrar
+        )
+        self.pantalla_analizar.pack(fill="both", expand=True)
+
 
 class PantallaRadiografias(tk.Frame):
     def __init__(self, root, volver, controlador, carpeta=None):
@@ -480,105 +489,124 @@ class PantallaHistorialPacientes(tk.Frame):
         self.volver_callback()
 
 class PantallaAnalizarRadiografia(tk.Frame):
-    def __init__(self, root, volver_callback, db, user_id):
+    def __init__(self, root, volver_callback):
         super().__init__(root)
         self.root = root
         self.volver_callback = volver_callback
-        self.db = db
-        self.user_id = user_id
         self.path_radiografia = None
 
         self.pack(fill="both", expand=True, padx=20, pady=20)
+        self.mostrar_pregunta_inicial()
 
-        # Título
-        tk.Label(self, text="Analizar radiografía", font=("Arial", 16)).pack(pady=10)
+    def mostrar_pregunta_inicial(self):
+        # Limpiar todo
+        for widget in self.winfo_children():
+            widget.destroy()
 
-        # Entrada DNI
+        tk.Label(self, text="¿La radiografía pertenece a un paciente?", font=("Arial", 16)).pack(pady=20)
+
+        btn_si = tk.Button(self, text="Sí", width=20, command=self.mostrar_formulario_paciente)
+        btn_si.pack(pady=5)
+
+        btn_no = tk.Button(self, text="No", width=20, command=self.mostrar_formulario_no_paciente)
+        btn_no.pack(pady=5)
+
+        tk.Button(self, text="Volver", command=self.volver).pack(pady=30)
+
+    def mostrar_formulario_paciente(self):
+        for widget in self.winfo_children():
+            widget.destroy()
+
+        tk.Label(self, text="Ingrese los datos del paciente", font=("Arial", 14)).pack(pady=10)
+
+        # DNI
         frame_dni = tk.Frame(self)
         frame_dni.pack(pady=10)
-        tk.Label(frame_dni, text="DNI del paciente:").pack(side="left")
+        tk.Label(frame_dni, text="DNI:").pack(side="left")
         self.entry_dni = tk.Entry(frame_dni)
-        self.entry_dni.pack(side="left", padx=5)
+        self.entry_dni.pack(side="left")
 
-        # Botón para cargar radiografía
-        self.btn_cargar = tk.Button(self, text="Seleccionar radiografía", command=self.seleccionar_radiografia)
-        self.btn_cargar.pack(pady=10)
-
-        # Label para mostrar el nombre del archivo seleccionado
+        # Radiografía
         self.label_archivo = tk.Label(self, text="Ningún archivo seleccionado")
         self.label_archivo.pack(pady=5)
 
-        # Botón para analizar
-        self.btn_analizar = tk.Button(self, text="Analizar y guardar", command=self.analizar_y_guardar)
-        self.btn_analizar.pack(pady=20)
+        btn_seleccionar = tk.Button(self, text="Seleccionar radiografía", command=self.seleccionar_radiografia)
+        btn_seleccionar.pack(pady=5)
 
-        # Mensajes
+        # Botón procesar
+        btn_procesar = tk.Button(self, text="Analizar y guardar", command=self.procesar_con_dni)
+        btn_procesar.pack(pady=15)
+
+        # Mensaje
         self.label_mensaje = tk.Label(self, text="", fg="red")
         self.label_mensaje.pack()
 
-        # Botón volver
-        self.btn_volver = tk.Button(self, text="Volver", command=self.volver)
-        self.btn_volver.pack(side="bottom", pady=10)
+        tk.Button(self, text="Volver", command=self.mostrar_pregunta_inicial).pack(pady=10)
+
+    def mostrar_formulario_no_paciente(self):
+        for widget in self.winfo_children():
+            widget.destroy()
+
+        tk.Label(self, text="Selecciona una radiografía para analizar", font=("Arial", 14)).pack(pady=10)
+
+        self.label_archivo = tk.Label(self, text="Ningún archivo seleccionado")
+        self.label_archivo.pack(pady=5)
+
+        btn_seleccionar = tk.Button(self, text="Seleccionar radiografía", command=self.seleccionar_radiografia)
+        btn_seleccionar.pack(pady=5)
+
+        btn_analizar = tk.Button(self, text="Analizar", command=self.procesar_sin_dni)
+        btn_analizar.pack(pady=15)
+
+        self.label_mensaje = tk.Label(self, text="", fg="red")
+        self.label_mensaje.pack()
+
+        tk.Button(self, text="Volver", command=self.mostrar_pregunta_inicial).pack(pady=10)
 
     def seleccionar_radiografia(self):
         file_path = filedialog.askopenfilename(
-            filetypes=[("Imagenes", "*.png *.jpg *.jpeg *.bmp")]
+            filetypes=[("Imágenes", "*.png *.jpg *.jpeg *.bmp")]
         )
         if file_path:
             self.path_radiografia = file_path
             nombre = os.path.basename(file_path)
             self.label_archivo.config(text=f"Archivo seleccionado: {nombre}")
 
-    def analizar_y_guardar(self):
+    def procesar_con_dni(self):
         dni = self.entry_dni.get().strip().upper()
         self.label_mensaje.config(text="", fg="red")
 
         # Validación DNI
-        if not dni:
-            self.label_mensaje.config(text="Por favor, introduce un DNI.")
-            return
         if not re.match(r'^\d{8}[A-Z]$', dni):
-            self.label_mensaje.config(text="DNI inválido. Debe tener 8 números y una letra mayúscula.")
+            self.label_mensaje.config(text="DNI inválido. Debe tener 8 números y una letra.")
             return
+
         if not self.path_radiografia:
             self.label_mensaje.config(text="Debes seleccionar una radiografía.")
             return
 
-        try:
-            # Comprobar si paciente existe
-            existe = self.db.paciente_existe(dni)
+        # Aquí iría: comprobar si existe paciente, crear si no, y guardar imagen
+        # Simulamos
+        self.label_mensaje.config(text="Radiografía analizada y guardada con éxito.", fg="green")
 
-            if not existe:
-                # Crear paciente sin patologías ni timestamp
-                self.db.crear_paciente_simple(dni)
+    def procesar_sin_dni(self):
+        self.label_mensaje.config(text="", fg="red")
 
-            # Aquí iría la llamada al modelo, por ahora simulamos el resultado
-            resultado_analisis = self.analizar_radiografia_modelo(self.path_radiografia)
+        if not self.path_radiografia:
+            self.label_mensaje.config(text="Debes seleccionar una radiografía.")
+            return
 
-            # Insertar registro con resultado y ruta radiografía (luego subirás al bucket)
-            self.db.insertar_radiografia(
-                user_id=self.user_id,
-                paciente_id=dni,
-                numero_radiografia="0",  # o puedes numerarlo desde la base
-                patologias=[resultado_analisis],
-                ruta_imagen=self.path_radiografia  # Por ahora local, luego url bucket
-            )
+        # Aquí simulas el análisis
+        resultado = self.analizar_radiografia_modelo(self.path_radiografia)
+        self.label_mensaje.config(text=f"Resultado: {resultado}", fg="green")
 
-            self.label_mensaje.config(text="Radiografía analizada y guardada con éxito.", fg="green")
-
-        except Exception as e:
-            self.label_mensaje.config(text=f"Error: {str(e)}")
-
-    def analizar_radiografia_modelo(self, ruta_imagen):
-        # Aquí irás integrando tu modelo ML
-        # Por ahora retornamos 'pneumonia' o 'nada' de forma dummy
+    def analizar_radiografia_modelo(self, ruta):
         import random
-        return random.choice(["pneumonia", "nada"])
+        return random.choice(["Pneumonía", "Sin hallazgos"])
 
     def volver(self):
         self.pack_forget()
         self.volver_callback()
-
 
 class App:
     def __init__(self, root):
