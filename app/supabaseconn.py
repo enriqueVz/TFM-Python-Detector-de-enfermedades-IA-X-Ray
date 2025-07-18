@@ -1,5 +1,7 @@
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import uuid  # Para nombres únicos de archivos
+
 import os
 
 class SupabaseDB:
@@ -50,29 +52,62 @@ class SupabaseDB:
 
         return response.data
 
-def paciente_existe(self, paciente_id):
-    response = self.supabase.table("pacientes_usuario") \
-        .select("paciente_id") \
-        .eq("paciente_id", paciente_id) \
-        .execute()
-    return len(response.data) > 0
+    def paciente_existe(self, paciente_id):
+        response = self.supabase.table("pacientes_usuario") \
+            .select("paciente_id") \
+            .eq("paciente_id", paciente_id) \
+            .execute()
+        return len(response.data) > 0
 
-def crear_paciente_simple(self, paciente_id):
-    # Insertar paciente con solo paciente_id, sin patologías ni timestamp
-    self.supabase.table("pacientes_usuario").insert({
-        "paciente_id": paciente_id,
-        "numero_radiografia": 0,
-        "patologias": [],
-        "ruta_imagen": ""
+    def crear_paciente_simple(self, paciente_id):
+        # Insertar paciente con solo paciente_id, sin patologías ni timestamp
+        self.supabase.table("pacientes_usuario").insert({
+            "user_id": self.usuario_logueado, 
+            "paciente_id": paciente_id,
+            "numero_radiografia": 0,
+            "patologias": [],
+            "ruta_imagen": ""
 
-    }).execute()
+        }).execute()
 
-def insertar_radiografia(self, user_id, paciente_id, numero_radiografia, patologias, ruta_imagen):
-    # Aquí debes guardar ruta_imagen (idealmente URL de Supabase Storage)
-    self.supabase.table("pacientes_usuario").insert({
-        "user_id": user_id,
-        "paciente_id": paciente_id,
-        "numero_radiografia": numero_radiografia,
-        "patologias": patologias,
-        "ruta_imagen": ruta_imagen
-    }).execute()
+    def insertar_radiografia(self, user_id, paciente_id, numero_radiografia, patologias, ruta_imagen):
+        # Aquí debes guardar ruta_imagen (idealmente URL de Supabase Storage)
+        self.supabase.table("pacientes_usuario").insert({
+            "user_id": user_id,
+            "paciente_id": paciente_id,
+            "numero_radiografia": numero_radiografia,
+            "patologias": patologias,
+            "ruta_imagen": ruta_imagen
+        }).execute()
+
+
+
+    def subir_radiografia(self, archivo_path: str) -> str:
+        bucket_name = "xrays"
+        archivo_nombre = f"{uuid.uuid4().hex}_{os.path.basename(archivo_path)}"
+
+        with open(archivo_path, "rb") as archivo:
+            response = self.supabase.storage.from_(bucket_name).upload(archivo_nombre, archivo.read())
+
+        if response.get("error"):
+            print("Error al subir imagen:", response["error"])
+            return None
+
+        # Generar URL pública
+        url = self.supabase.storage.from_(bucket_name).get_public_url(archivo_nombre)
+        return url
+    
+    def guardar_radiografia_completa(self, archivo_path, user_id, paciente_id, numero_radiografia, patologias):
+        url = self.subir_radiografia(archivo_path)
+        if not url:
+            print("Error: No se pudo subir la imagen al bucket.")
+            return False
+
+        self.insertar_radiografia(
+            user_id=user_id,
+            paciente_id=paciente_id,
+            numero_radiografia=numero_radiografia,
+            patologias=patologias,
+            ruta_imagen=url
+        )
+        return True

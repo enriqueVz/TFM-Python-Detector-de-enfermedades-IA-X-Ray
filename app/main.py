@@ -147,8 +147,9 @@ class PantallaLogin:
 
 
 class PantallaPostLogin:
-    def __init__(self, root, mostrar_radiografias, cerrar_sesion_callback, mostrar_historial_callback=None):
+    def __init__(self, root, db, mostrar_radiografias, cerrar_sesion_callback, mostrar_historial_callback=None):
         self.root = root
+        self.db = db 
         self.mostrar_radiografias = mostrar_radiografias
         self.cerrar_sesion_callback = cerrar_sesion_callback
         self.mostrar_historial_callback = mostrar_historial_callback
@@ -224,7 +225,9 @@ class PantallaPostLogin:
         # Asumo que tienes una clase PantallaAnalizarRadiografia compatible con esta llamada
         self.pantalla_analizar = PantallaAnalizarRadiografia(
             self.root,
-            volver_callback=self.mostrar
+            volver_callback=self.mostrar,
+            db=self.db,
+            user_id=self.db.obtener_usuario_id()
         )
         self.pantalla_analizar.pack(fill="both", expand=True)
 
@@ -488,18 +491,20 @@ class PantallaHistorialPacientes(tk.Frame):
         self.pack_forget()
         self.volver_callback()
 
+
 class PantallaAnalizarRadiografia(tk.Frame):
-    def __init__(self, root, volver_callback):
+    def __init__(self, root, volver_callback, db, user_id):
         super().__init__(root)
         self.root = root
         self.volver_callback = volver_callback
         self.path_radiografia = None
+        self.db = db
+        self.user_id = user_id
 
         self.pack(fill="both", expand=True, padx=20, pady=20)
         self.mostrar_pregunta_inicial()
 
     def mostrar_pregunta_inicial(self):
-        # Limpiar todo
         for widget in self.winfo_children():
             widget.destroy()
 
@@ -519,25 +524,21 @@ class PantallaAnalizarRadiografia(tk.Frame):
 
         tk.Label(self, text="Ingrese los datos del paciente", font=("Arial", 14)).pack(pady=10)
 
-        # DNI
         frame_dni = tk.Frame(self)
         frame_dni.pack(pady=10)
         tk.Label(frame_dni, text="DNI:").pack(side="left")
         self.entry_dni = tk.Entry(frame_dni)
         self.entry_dni.pack(side="left")
 
-        # Radiografía
         self.label_archivo = tk.Label(self, text="Ningún archivo seleccionado")
         self.label_archivo.pack(pady=5)
 
         btn_seleccionar = tk.Button(self, text="Seleccionar radiografía", command=self.seleccionar_radiografia)
         btn_seleccionar.pack(pady=5)
 
-        # Botón procesar
         btn_procesar = tk.Button(self, text="Analizar y guardar", command=self.procesar_con_dni)
         btn_procesar.pack(pady=15)
 
-        # Mensaje
         self.label_mensaje = tk.Label(self, text="", fg="red")
         self.label_mensaje.pack()
 
@@ -576,7 +577,6 @@ class PantallaAnalizarRadiografia(tk.Frame):
         dni = self.entry_dni.get().strip().upper()
         self.label_mensaje.config(text="", fg="red")
 
-        # Validación DNI
         if not re.match(r'^\d{8}[A-Z]$', dni):
             self.label_mensaje.config(text="DNI inválido. Debe tener 8 números y una letra.")
             return
@@ -585,9 +585,33 @@ class PantallaAnalizarRadiografia(tk.Frame):
             self.label_mensaje.config(text="Debes seleccionar una radiografía.")
             return
 
-        # Aquí iría: comprobar si existe paciente, crear si no, y guardar imagen
-        # Simulamos
-        self.label_mensaje.config(text="Radiografía analizada y guardada con éxito.", fg="green")
+        try:
+            if not self.db.paciente_existe(dni):
+                self.db.crear_paciente_simple(dni)
+
+            resultado = self.analizar_radiografia_modelo(self.path_radiografia)
+            patologias = [resultado]
+
+            url_imagen = self.db.subir_radiografia(self.path_radiografia)
+            if not url_imagen:
+                self.label_mensaje.config(text="Error al subir la radiografía al servidor.")
+                return
+
+            historial = self.db.get_historial_por_dni(dni, self.user_id)
+            numero_radiografia = len(historial) + 1
+
+            self.db.insertar_radiografia(
+                user_id=self.user_id,
+                paciente_id=dni,
+                numero_radiografia=numero_radiografia,
+                patologias=patologias,
+                ruta_imagen=url_imagen
+            )
+
+            self.label_mensaje.config(text="Radiografía analizada y guardada con éxito.", fg="green")
+
+        except Exception as e:
+            self.label_mensaje.config(text=f"Ocurrió un error: {str(e)}", fg="red")
 
     def procesar_sin_dni(self):
         self.label_mensaje.config(text="", fg="red")
@@ -596,7 +620,6 @@ class PantallaAnalizarRadiografia(tk.Frame):
             self.label_mensaje.config(text="Debes seleccionar una radiografía.")
             return
 
-        # Aquí simulas el análisis
         resultado = self.analizar_radiografia_modelo(self.path_radiografia)
         self.label_mensaje.config(text=f"Resultado: {resultado}", fg="green")
 
@@ -607,7 +630,6 @@ class PantallaAnalizarRadiografia(tk.Frame):
     def volver(self):
         self.pack_forget()
         self.volver_callback()
-
 class App:
     def __init__(self, root):
         self.root = root
@@ -659,6 +681,7 @@ class App:
                 # Crear pantalla post login si no existe
                 self.pantalla_post_login = PantallaPostLogin(
                 self.root,
+                self.db,
                 self.mostrar_radiografias,
                 self.cerrar_sesion,
                 self.mostrar_historial  # Este es el nuevo callback para el botón "Historial"
